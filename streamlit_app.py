@@ -573,8 +573,23 @@ elif page == "👥 Insight Kelompok Umur":
             data_list = age_groups_data[age_group_selected]
             data_list.sort(key=lambda x: x['tahun'])
             
-            years = np.array([d['tahun'] for d in data_list]).reshape(-1, 1)
-            pops = np.array([d['populasi'] for d in data_list])
+            # Normalize data scale (2019 data is in individual units, not thousands)
+            normalized_data = []
+            for d in data_list:
+                pop_value = d['populasi']
+                # If 2019 and value > 100000, convert to thousands (divide by 1000)
+                if d['tahun'] == 2019 and pop_value > 100000:
+                    pop_value = pop_value / 1000
+                normalized_data.append({'tahun': d['tahun'], 'populasi': pop_value})
+            
+            # Info tentang data normalization
+            st.info(
+                "📌 **Catatan Data**: Data tahun 2019 telah dinormalisasi ke dalam satuan ribuan "
+                "untuk konsistensi dengan data tahun 2024-2025."
+            )
+            
+            years = np.array([d['tahun'] for d in normalized_data]).reshape(-1, 1)
+            pops = np.array([d['populasi'] for d in normalized_data])
             
             # Polynomial Regression
             poly = PolynomialFeatures(degree=2, include_bias=False)
@@ -591,15 +606,18 @@ elif page == "👥 Insight Kelompok Umur":
             X_future_poly = poly.transform(future_years)
             future_pops = model.predict(X_future_poly)
             
+            # Ensure predictions are not negative (clamp to minimum 0)
+            future_pops = np.maximum(future_pops, 0)
+            
             # Chart
-            tahun_all = [d['tahun'] for d in data_list] + [2026, 2027, 2028, 2029, 2030]
+            tahun_all = [d['tahun'] for d in normalized_data] + [2026, 2027, 2028, 2029, 2030]
             populasi_historis = list(pops) + [None]*5
-            prediksi = [None]*len(data_list) + list(future_pops)
+            prediksi = [None]*len(normalized_data) + list(future_pops)
             
             fig = go.Figure()
             
             fig.add_trace(go.Scatter(
-                x=[d['tahun'] for d in data_list],
+                x=[d['tahun'] for d in normalized_data],
                 y=list(pops),
                 name='Data Historis',
                 mode='lines+markers',
